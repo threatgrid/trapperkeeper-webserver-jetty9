@@ -5,6 +5,7 @@
            (org.eclipse.jetty.websocket.server WebSocketHandler)
            (org.eclipse.jetty.websocket.servlet WebSocketServletFactory WebSocketCreator)
            (java.security.cert X509Certificate)
+           (java.net URI)
            (java.nio ByteBuffer))
 
   (:require [clojure.tools.logging :as log]
@@ -49,13 +50,19 @@
     (.. this (getSession) (getUpgradeRequest) (isSecure)))
   (peer-certs [this]
     (.. this (getCerts)))
+  (uri-path [this]
+    (.. this (getURI) (getPath)))
+  (headers [this]
+    (.. this (getHeaders)))
   (idle-timeout! [this ms]
     (.. this (getSession) (setIdleTimeout ^long ms)))
   (connected? [this]
     (. this (isConnected))))
 
 (definterface CertGetter
-  (^Object getCerts []))
+  (^Object getCerts [])
+  (^Object getURI [])
+  (^Object getHeaders []))
 
 (defn no-handler
   [event & args]
@@ -63,7 +70,9 @@
 
 (schema/defn ^:always-validate proxy-ws-adapter :- WebSocketAdapter
   [handlers :- WebsocketHandlers
-   x509certs :- [X509Certificate]]
+   x509certs :- [X509Certificate]
+   uri :- URI
+   headers]
   (let [{:keys [on-connect on-error on-text on-close on-bytes]
          :or {on-connect (partial no-handler :on-connect)
               on-error   (partial no-handler :on-error)
@@ -91,14 +100,18 @@
         (let [^WebSocketAdapter this this]
           (proxy-super onWebSocketBinary payload offset len))
         (on-bytes this payload offset len))
-      (getCerts [] x509certs))))
+      (getCerts [] x509certs)
+      (getURI [] uri)
+      (getHeaders [] headers))))
 
 (schema/defn ^:always-validate proxy-ws-creator :- WebSocketCreator
   [handlers :- WebsocketHandlers]
   (reify WebSocketCreator
     (createWebSocket [this req _]
-      (let [x509certs (vec (.. req (getCertificates)))]
-        (proxy-ws-adapter handlers x509certs)))))
+      (let [x509certs (vec (.. req (getCertificates)))
+            uri (.. req (getRequestURI))
+            headers (.. req (getHeaders))]
+        (proxy-ws-adapter handlers x509certs uri headers)))))
 
 (schema/defn ^:always-validate websocket-handler :- WebSocketHandler
   "Returns a Jetty WebSocketHandler implementation for the given set of Websocket handlers"

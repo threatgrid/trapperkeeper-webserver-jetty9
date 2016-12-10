@@ -15,4 +15,8 @@
   (ssl? [this]
     "Returns a boolean indicating if the session was established by wss://")
   (peer-certs [this]
-    "Returns an array of X509Certs presented by the ssl peer, if any"))
+    "Returns an array of X509Certs presented by the ssl peer, if any")
+  (headers [this]
+    "Returns a map of headers to list of string values")
+  (uri-path [this]
+    "Returns the URI path used to connect to the server"))
